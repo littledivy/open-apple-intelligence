@@ -1,4 +1,4 @@
-# apple-intelligence
+# open-apple-intelligence
 
 Drop-in polyfills for Apple Intelligence frameworks on devices Apple gates them off —
 ineligible hardware, or an OS older than iOS 26 / macOS 26.
