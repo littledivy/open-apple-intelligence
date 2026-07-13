@@ -68,6 +68,24 @@ gaps, and they're documented per package — everything in userspace is real, no
 - VisualIntelligence's system **camera trigger** — the image-analysis API itself is real.
 - `AppIntents._SystemIntentValue` (private SPI, mangled symbols).
 
+## Status
+
+Early (0.1). Honest coverage against Apple's real API — see `AppleIntelligence.md` for the
+member-by-member breakdown:
+
+| Framework | Coverage | Reality |
+|---|--:|---|
+| FoundationModels | 313/364 | **True drop-in.** Sessions, streaming, guided generation (`@Generable`), tools all work. Gaps are niche (feedback logging, adapter no-ops, ABI shims). |
+| ImagePlayground | 62/66 | **Drop-in.** `ImageCreator`, `.imagePlaygroundSheet`, styles. On-device Stable Diffusion needs the `CoreMLDiffusion` trait + Xcode. |
+| AppIntents assistant | 205/205 | **Compiles drop-in** (full schema surface), but system Siri routing has no public hook — runs via an in-process `LocalAssistant`, not the OS assistant. |
+| Writing Tools | functional | Text engine (proofread/rewrite/summarize/…) works, but it is **not** a 1:1 mirror of the `UIWritingToolsCoordinator` / `NSAdaptiveImageGlyph` UIKit API — it's a functional analog with its own surface. |
+| VisualIntelligence | 3/10 | `SemanticContentDescriptor` + on-device Vision analysis. The framework is mostly OS-side; the system camera/search path isn't polyfillable. |
+
+**Not yet validated on a real iOS device.** Verified on macOS (SwiftPM + Xcode): local-server
+and MLX text generation, one on-device Stable Diffusion image, guided decoding. The
+Writing Tools / AppIntents / VisualIntelligence paths are covered by offline + unit tests
+only. Treat as a starting point, not a finished product.
+
 ## Requirements
 
 Swift 6.1+ (this is a single SwiftPM package; every framework above is a `library` product,
