@@ -71,7 +71,7 @@ gaps, and they're documented per package — everything in userspace is real, no
 ## Requirements
 
 Swift 6.1+ (this is a single SwiftPM package; every framework above is a `library` product,
-so one `.package(url: "https://github.com/littledivy/apple-intelligence")` dependency vends
+so one `.package(url: "https://github.com/littledivy/open-apple-intelligence")` dependency vends
 them all). MLX and ImagePlayground run their Metal / Core ML pipelines under Xcode or on
 device (SwiftPM's CLI doesn't compile their shaders); the other packages run anywhere.
 

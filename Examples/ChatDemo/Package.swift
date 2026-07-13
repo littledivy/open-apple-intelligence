@@ -15,7 +15,7 @@ let package = Package(
         .executableTarget(
             name: "ChatDemo",
             dependencies: [
-                .product(name: "OpenFoundationModels", package: "apple-intelligence"),
+                .product(name: "OpenFoundationModels", package: "open-apple-intelligence"),
             ]
         ),
     ]

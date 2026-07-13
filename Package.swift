@@ -2,10 +2,10 @@
 import PackageDescription
 import CompilerPluginSupport
 
-// apple-intelligence — a single SwiftPM package that vends drop-in polyfills for Apple's
+// open-apple-intelligence — a single SwiftPM package that vends drop-in polyfills for Apple's
 // Apple Intelligence frameworks as individual library products. Add one dependency:
 //
-//     .package(url: "https://github.com/littledivy/apple-intelligence", from: "…")
+//     .package(url: "https://github.com/littledivy/open-apple-intelligence", from: "…")
 //
 // …and depend on whichever `Open*` product you need. Users swap
 // `import FoundationModels` → `import OpenFoundationModels` (and friends); the API names
@@ -23,7 +23,7 @@ import CompilerPluginSupport
 // With the traits off, `OpenFoundationModelsMLX` compiles as an (empty) present module and
 // `OpenImagePlayground` still works via its HTTP / OpenAI-compatible image backend.
 let package = Package(
-    name: "apple-intelligence",
+    name: "open-apple-intelligence",
     platforms: [
         .iOS(.v16),
         .macOS(.v14),
