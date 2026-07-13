@@ -3,3 +3,5 @@
 *.xcodeproj
 *.xcworkspace
 xcuserdata/
+.omc/
+.checklist-split/

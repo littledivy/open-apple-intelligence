@@ -1,140 +1,78 @@
-# OpenFoundationModels
+# apple-intelligence
 
-Drop-in polyfill for Apple's **FoundationModels** on devices where Apple gates off
-Apple Intelligence (ineligible hardware, or OS older than iOS 26 / macOS 26).
+Drop-in polyfills for Apple Intelligence frameworks on devices Apple gates them off —
+ineligible hardware, or an OS older than iOS 26 / macOS 26.
 
-Same type names as Apple's framework, so adopting it is a one-line change:
+Apple ships these frameworks in the OS but disables them on ineligible devices (their
+availability APIs report `.unavailable`); on older OS versions the frameworks don't exist
+at all. These packages reproduce the public API and make it actually work, backed by
+Apple's real model when eligible and by on-device / local engines otherwise.
+
+## Frameworks
+
+| Apple framework | Package | Polyfill import |
+|---|---|---|
+| FoundationModels | `OpenFoundationModels` | `import OpenFoundationModels` |
+| Writing Tools + Genmoji (UIKit) | `OpenWritingTools` | `import OpenWritingTools` |
+| ImagePlayground | `OpenImagePlayground` | `import OpenImagePlayground` |
+| VisualIntelligence | `OpenVisualIntelligence` | `import OpenVisualIntelligence` |
+| AppIntents assistant schemas | `OpenAppIntentsAssistant` | `import OpenAppIntentsAssistant` |
+
+`OpenFoundationModelsMLX` adds an in-process on-device LLM backend (Apple Silicon, via MLX).
+
+## Drop-in
+
+Each package mirrors Apple's public API **exactly** — same type names, same signatures —
+so adopting it is a one-line change per framework:
 
 ```diff
 - import FoundationModels
 + import OpenFoundationModels
 ```
 
-Everything else in your code — `SystemLanguageModel`, `LanguageModelSession`,
-`respond(to:)`, `streamResponse(to:)`, `GenerationOptions`, `Instructions`,
-`Prompt` — compiles unchanged.
+The rest of your code compiles unchanged. The polyfill types intentionally carry no
+`@available` gating, so they resolve on old deployment targets where the real symbols
+are absent.
 
-## How it resolves a model
+## How it works
 
-- **Eligible device** (real FoundationModels present + available) → delegates to Apple's
-  on-device model. Best quality, zero cost, private.
-- **Everywhere else** → routes to a backend you configure.
+**Same names, own module.** A module named `FoundationModels` would collide with Apple's
+on the current SDK, so each polyfill lives in an `Open*` module that re-declares the same
+API surface. You change the import; nothing else.
 
-```swift
-import OpenFoundationModels
+**Availability means "is a backend ready".** `SystemLanguageModel.default.availability`,
+`ImageCreator`, and friends report available whenever a usable engine is configured — so
+existing code that branches on availability keeps working, and falls through to your
+fallback path only when nothing can serve the request.
 
-// Local llama.cpp / LM Studio / Ollama / vLLM, or OpenAI, or any /v1 endpoint:
-OpenFoundationModels.configure(backend: OpenAICompatibleBackend(
-    endpoint: URL(string: "http://localhost:8091/v1")!,
-    model: "qwen3"
-))
+**Runtime resolution.** For each request the polyfill picks, in order:
 
-// Apple when eligible, this backend otherwise:
-OpenFoundationModels.configure(fallback: OpenAICompatibleBackend(endpoint: ...))
-```
+1. Apple's real framework, when the device is eligible (best quality, private, free).
+2. An on-device engine — MLX (text), Core ML Stable Diffusion (images), Vision (analysis).
+3. A configured server — any OpenAI-compatible `/v1` endpoint (llama.cpp, Ollama, vLLM, cloud).
+4. A deterministic local fallback, so a path never silently no-ops.
 
-If you never configure a backend, `SystemLanguageModel.default.availability` reports
-`.unavailable(.modelNotReady)` on ineligible devices — the same shape your existing
-fallback UI already handles.
+**Guided generation & tools** are real: `@Generable` / `@Guide` expand via a Swift macro
+into a schema, the backend is asked for schema-constrained JSON, and the reply is decoded
+into your typed value; tool calls are detected and executed in-process.
 
-## Usage (identical to Apple's API)
+## What isn't polyfillable
 
-```swift
-let model = SystemLanguageModel.default
-guard model.isAvailable else { /* your fallback */ return }
+A few surfaces hook into private OS services with no public entry point. These are the only
+gaps, and they're documented per package — everything in userspace is real, not stubbed:
 
-let session = LanguageModelSession(instructions: "You are terse.")
+- System **Siri / Assistant** routing — `OpenAppIntentsAssistant` ships an in-process
+  intent router instead.
+- Writing Tools' system **inline-editing overlay** (private `UIInteraction`) — the text
+  transforms and menu integration work regardless.
+- VisualIntelligence's system **camera trigger** — the image-analysis API itself is real.
+- `AppIntents._SystemIntentValue` (private SPI, mangled symbols).
 
-// One-shot
-let reply = try await session.respond(to: "Summarize WWDC in a line.")
-print(reply.content)
+## Requirements
 
-// Streaming (cumulative snapshots)
-for try await snapshot in session.streamResponse(to: "Write a haiku.") {
-    render(snapshot)   // full text so far
-}
-```
+Swift 6+. MLX and ImagePlayground run their Metal / Core ML pipelines under Xcode or on
+device (SwiftPM's CLI doesn't compile their shaders); the other packages run anywhere.
 
-## Guided generation (`@Generable`)
-
-Same as Apple's API — define a `@Generable` type and ask the model to produce it:
-
-```swift
-@Generable
-struct Person {
-    @Guide(description: "the person's full name")
-    var name: String
-    @Guide(.range(0...130))
-    var age: Int
-}
-
-let person = try await session.respond(
-    to: "A person named Ada Lovelace who is 36.",
-    generating: Person.self
-).content        // → Person(name: "Ada Lovelace", age: 36)
-```
-
-The macro synthesizes the `GenerationSchema`; the backend is asked for schema-constrained
-JSON (`response_format`), and the reply is decoded into your type. Works with fenced/prose-
-wrapped JSON too.
-
-## Tool calling
-
-Pass tools at init; the session offers them to the model and invokes them when requested:
-
-```swift
-struct WeatherTool: Tool {
-    let name = "get_weather"
-    let description = "Get the current weather for a city."
-    func call(arguments: WeatherArgs) async throws -> String { … }   // WeatherArgs is @Generable
-}
-
-let session = LanguageModelSession(tools: [WeatherTool()])
-let reply = try await session.respond(to: "Weather in Paris?")   // tool runs, result folded in
-```
-
-## Backends
-
-| Backend | Use |
-|---|---|
-| `AppleOnDeviceBackend` | Real FoundationModels; auto-selected when eligible. |
-| `MLXBackend` | **On-device**, in-process (Apple Silicon) via MLX — no server. `import OpenFoundationModelsMLX` (see `Integrations/MLX/`). |
-| `OpenAICompatibleBackend` | Any `/chat/completions` server (OpenAI, llama.cpp, Ollama, vLLM, LM Studio). SSE streaming + schema-constrained JSON. |
-| `EchoBackend` | Deterministic, offline — tests, SwiftUI previews, demos. |
-
-Custom backend = conform to `ModelBackend` (`generate(_:)` required; override
-`stream(_:)` for real token streaming; read `request.schema` for guided generation).
-
-### On-device, no server (truly drop-in)
-
-```swift
-import OpenFoundationModels
-import OpenFoundationModelsMLX
-
-OpenFoundationModels.configure(backend: MLXBackend(
-    modelId: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
-))
-// LanguageModelSession now runs a local model in-process on Apple Silicon.
-```
-
-> **Build with Xcode for MLX.** mlx-swift's Metal shaders are only compiled by
-> Xcode/`xcodebuild`, not plain `swift build`/`swift run` from the CLI. Verified
-> on-device: `mlx-community/Qwen2.5-0.5B-Instruct-4bit` → "Paris", with cumulative
-> streaming. The core package and the OpenAI-compatible/Echo backends have no such
-> restriction and run fine from the CLI.
-
-## Status
-
-**Phase 1 & 2 — done and tested:** availability, sessions, multi-turn transcript
-(`Transcript`), `respond`/`streamResponse` (all String/Prompt/builder/`generating:`/`schema:`
-overloads), typed `Response<Content: Generable>` + `ResponseStream.Snapshot`,
-`GenerationOptions`, `Instructions`/`Prompt` builders, **guided generation** (`@Generable`/
-`@Guide`/`GenerationSchema` + constrained decoding), **tool calling**, Apple delegation,
-on-device MLX + OpenAI-compatible + echo backends. Verified end-to-end against a local
-Ollama/llama.cpp server (text, streaming, multi-turn, guided).
-
-**Known gaps:** streaming partial `Generable` snapshots are best-effort (final snapshot is
-fully decoded; intermediates yield when parseable); the tool loop runs on non-streaming
-turns; `SystemLanguageModel.Adapter.isCompatible(_:)` (BackgroundAssets) is not bridged.
-
-See `AppleIntelligence.md` for the full gated-API checklist this tracks against.
+Per-package `README`s cover configuration and usage; `Examples/ChatDemo` is a runnable
+SwiftUI app. `AppleIntelligence.md` tracks polyfill coverage against Apple's real API,
+member by member.
