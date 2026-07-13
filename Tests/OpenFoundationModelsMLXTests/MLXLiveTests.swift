@@ -1,3 +1,4 @@
+#if MLX
 import XCTest
 import OpenFoundationModels
 @testable import OpenFoundationModelsMLX
@@ -64,3 +65,4 @@ final class MLXLiveTests: XCTestCase {
         XCTAssertFalse(final.isEmpty, "expected non-empty final streamed content")
     }
 }
+#endif

@@ -27,15 +27,24 @@ public enum OpenImagePlayground {
         _explicitlyConfigured = true
     }
 
-    /// The backend used for generation. Falls back to the real on-device
-    /// `CoreMLDiffusionBackend` when nothing was explicitly configured, so the polyfill
-    /// works out of the box.
+    /// The backend used for generation.
+    ///
+    /// When the `CoreMLDiffusion` package trait is enabled, this falls back to the real
+    /// on-device `CoreMLDiffusionBackend` if nothing was explicitly configured, so the
+    /// polyfill works out of the box with zero config. When the trait is off (the default),
+    /// the on-device pipeline is compiled out, so there is no built-in fallback — callers
+    /// must install a backend via `configure(backend:)` (e.g. the OpenAI-compatible HTTP
+    /// backend), and `ImageCreator()` reports `.unavailable` until they do.
     public static var backend: ImageGenerationBackend? {
         lock.lock(); defer { lock.unlock() }
         if let _backend { return _backend }
+        #if CoreMLDiffusion
         let fallback = CoreMLDiffusionBackend()
         _backend = fallback
         return fallback
+        #else
+        return nil
+        #endif
     }
 
     /// Whether a caller explicitly installed a backend (vs. the on-device default).

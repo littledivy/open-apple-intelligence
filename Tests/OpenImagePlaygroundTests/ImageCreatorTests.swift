@@ -43,14 +43,25 @@ final class ImageCreatorTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    #if CoreMLDiffusion
     func testDefaultBackendIsOnDeviceDiffusion() {
         // With no explicit configuration, the shipping default is the REAL on-device
-        // Core ML Stable Diffusion pipeline (not a stub/rectangle).
+        // Core ML Stable Diffusion pipeline (not a stub/rectangle). This only holds when
+        // the `CoreMLDiffusion` trait is enabled; otherwise the on-device pipeline is
+        // compiled out and there is no built-in fallback backend.
         XCTAssertFalse(OpenImagePlayground.isExplicitlyConfigured)
         XCTAssertTrue(OpenImagePlayground.backend is CoreMLDiffusionBackend)
         XCTAssertTrue(OpenImagePlayground.isExplicitlyConfigured == false)
         XCTAssertEqual(OpenImagePlayground.backend?.identifier, "coreml-stable-diffusion")
     }
+    #else
+    func testDefaultBackendIsNilWithoutTrait() {
+        // Without the `CoreMLDiffusion` trait the on-device backend is compiled out, so
+        // there is no built-in default: callers must configure a backend explicitly.
+        XCTAssertFalse(OpenImagePlayground.isExplicitlyConfigured)
+        XCTAssertNil(OpenImagePlayground.backend)
+    }
+    #endif
 
     func testConfigureOverridesDefault() {
         OpenImagePlayground.configure(backend: StubImageBackend())

@@ -1,3 +1,4 @@
+#if MLX
 import Foundation
 import OpenFoundationModels
 import MLXLMCommon
@@ -163,3 +164,4 @@ private actor ContainerLoader {
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if CoreMLDiffusion
 import CoreGraphics
 import CoreML
 import Foundation
@@ -252,3 +253,4 @@ private actor DiffusionEngine {
         return created
     }
 }
+#endif
